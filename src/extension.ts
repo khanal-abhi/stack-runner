@@ -44,6 +44,47 @@ function runStackRunner(cmd: string, rootPath: string): Promise<IBuildError[]> {
 	});
 }
 
+let dgnstsColl = vscode.languages.createDiagnosticCollection('stackrunner');
+let textDocument: vscode.TextDocument;
+
+export function runStackRunnerWith(textDocument: vscode.TextDocument, context: vscode.ExtensionContext) {
+	// Display a message box to the user
+	vscode.window.showInformationMessage('Running stack runner now');
+	const rootPath = vscode.workspace.getWorkspaceFolder(textDocument.uri);
+	const bin = vscode.workspace.getConfiguration('stackrunner').get('serverBinary');
+	runStackRunner(`${bin}`, rootPath ? rootPath.uri.fsPath : '')
+		.then(bes => {
+			if (bes.length === 0) {
+				vscode.window.showInformationMessage('Stack Runner was able to build your project successfully!');
+				dgnstsColl.clear();
+			} else {
+				if (dgnstsColl) {
+					dgnstsColl.clear();
+				}
+				const dgnsts: vscode.Diagnostic[] = [];
+				bes.forEach(be => {
+					be.details = be.details.map(d => {
+						return d.replace(/^.*\[warn\]\s*/, '');
+					});
+					if (!!be.extras && be.extras.trim().length > 0) {
+						be.details.unshift(be.extras);
+					}
+					const pos1 = new vscode.Position(be.line - 1, be.column);
+					// const pos2 = new vscode.Position(be.line, 0);
+					const rng = new vscode.Range(pos1, pos1);
+					const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
+					dgnsts.push(dgnst);
+				});
+				dgnstsColl.set(textDocument.uri, dgnsts);
+				vscode.window.showErrorMessage(`Found ${bes.length} build errors!`);
+				context.subscriptions.push(dgnstsColl);
+			}
+		})
+		.catch(err => {
+			vscode.window.showErrorMessage(err.toString());
+		});
+}
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -52,36 +93,13 @@ export function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "stack-runner" is now active!');
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('extension.runStackRunner', () => {
-		// The code you place here will be executed every time your command is executed
-
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Running stack runner now');
-		const rootPath = vscode.workspace.rootPath;
-		const bin = vscode.workspace.getConfiguration('stackrunner').get('serverBinary');
-		runStackRunner(`${bin}`, rootPath || '')
-			.then(bes => {
-				if (bes.length === 0) {
-					vscode.window.showInformationMessage('Stack Runner was able to build your project successfully!');
-				} else {
-					bes.forEach(be => {
-						be.details = be.details.map(d => {
-							return d.replace(/^.*\[warn\]\s*/, '');
-						});
-						vscode.window.showErrorMessage(`Build Error: ${be.file}`);
-					});
-				}
-			})
-			.catch(err => {
-				vscode.window.showErrorMessage(err.toString());
-			});
-
+	vscode.workspace.onDidSaveTextDocument(td => {
+		runStackRunnerWith(td, context);
 	});
 
-	context.subscriptions.push(disposable);
+	vscode.workspace.onDidChangeTextDocument(td => {
+		textDocument = td.document;
+	});
 }
 
 // this method is called when your extension is deactivated
