@@ -46,6 +46,8 @@ function runStackRunner(cmd: string, rootPath: string): Promise<IBuildError[]> {
 
 let dgnstsColl = vscode.languages.createDiagnosticCollection('stackrunner');
 let textDocument: vscode.TextDocument;
+let runOnSave = false;
+let runOnLoad = false;
 
 export function runStackRunnerWith(textDocument: vscode.TextDocument, context: vscode.ExtensionContext) {
 	// Display a message box to the user
@@ -73,7 +75,9 @@ export function runStackRunnerWith(textDocument: vscode.TextDocument, context: v
 					// const pos2 = new vscode.Position(be.line, 0);
 					const rng = new vscode.Range(pos1, pos1);
 					const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
-					dgnsts.push(dgnst);
+					if (textDocument.uri.fsPath.localeCompare(be.file) === 0) {
+						dgnsts.push(dgnst);
+					}
 				});
 				dgnstsColl.set(textDocument.uri, dgnsts);
 				vscode.window.showErrorMessage(`Found ${bes.length} build errors!`);
@@ -93,12 +97,42 @@ export function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "stack-runner" is now active!');
 
+	const _runOnSave = vscode.workspace.getConfiguration('stackrunner').get('runonsave') as boolean;
+	runOnSave = _runOnSave;
+
+	const _runOnLoad = vscode.workspace.getConfiguration('stackrunner').get('runonload') as boolean;
+	runOnLoad = _runOnLoad;
+
+	if (!!vscode.window.activeTextEditor) {
+		textDocument = vscode.window.activeTextEditor.document;
+		if (runOnLoad) {
+			runStackRunnerWith(textDocument, context);
+		}
+	}
+
 	vscode.workspace.onDidSaveTextDocument(td => {
-		runStackRunnerWith(td, context);
+		if (runOnSave) {
+			runStackRunnerWith(td, context);
+		}
 	});
 
 	vscode.workspace.onDidChangeTextDocument(td => {
 		textDocument = td.document;
+	});
+
+	vscode.window.onDidChangeActiveTextEditor(td => {
+		if (!!td) {
+			textDocument = td.document;
+			if (runOnLoad) {
+				runStackRunnerWith(textDocument, context);
+			}
+		}
+	});
+
+	let sub = vscode.commands.registerCommand('extension.runStackRunner', args => {
+		if (!!textDocument) {
+			runStackRunnerWith(textDocument, context);
+		}
 	});
 }
 
