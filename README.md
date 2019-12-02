@@ -1,65 +1,36 @@
-# stack-runner README
+Stack Runner
+==
 
-This is the README for your extension "stack-runner". After writing up a brief description, we recommend including the following sections.
+## About
 
-## Features
+[Stack Runner](https://github.com/khanal-abhi/stack-runner) is an extension for vs code that helps with stack builds for Haskell development. This extension requires [Stack Runner Server](https://github.com/khanal-abhi/stackrunner_server) as the backend for running the [Haskell Stack](https://docs.haskellstack.org/en/stable/README) builds. Please make sure that the binary for the server is visible in system path or configure the settings with the proper path.
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+<hr>
 
 ## Requirements
+There are two main requirements for this extension:
+- [Stack Runner Server](https://github.com/khanal-abhi/stackrunner_server)
+- [Haskell Stack](https://docs.haskellstack.org/en/stable/README)
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+<hr>
 
-## Extension Settings
+## Installation
+To install this extension manually, all you need to do is copy the repository to `~/.vscode/extensions/`.
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+<hr>
 
-For example:
+## Configurations
 
-This extension contributes the following settings:
+### Configuring the path to server binary
+If the server binary is not available in system path, you can point to the binary by adding `"stackrunner.serverBinary"` key that points to the string form of absolute path of the binary. 
 
-* `myExtension.enable`: enable/disable this extension
-* `myExtension.thing`: set to `blah` to do something
+### Configuring the runner to run on save
+If you would like the runner to run automatically on each save, you can adding the `"stackrunner.runonsave"` key with a value of `true`. This setting is configured as false by default.
 
-## Known Issues
+**The default key binding for settings is `Ctrl + ,`.**
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
 
-## Release Notes
+<hr>
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
------------------------------------------------------------------------------------------------------------
-
-## Working with Markdown
-
-**Note:** You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+CMD+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux) or `Cmd+Space` (macOS) to see a list of Markdown snippets
-
-### For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+## Issues
+For any issues related to the extension, please report the bug [here](https://github.com/khanal-abhi/stack-runner/issues). For any issues related to the server binary or installation, please report the bug [here](https://github.com/khanal-abhi/stackrunner_server/issues).
