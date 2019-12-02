@@ -11,11 +11,11 @@ export interface IBuildError {
 	details: string[];
 }
 
-function runStackRunner(cmd: string, rootPath: string): Promise<IBuildError[]> {
-	return new Promise((res, rej) => {
-		cmd = cmd || `/home/abhi/Projects/go/bin/stackrunner_server`;
-		rootPath = rootPath || '/home/abhi/Projects/stack/HSRest';
-		const sp = cp.spawn(cmd, [rootPath]);
+function runStackRunner(cmd: string, rootPath: string): [Promise<IBuildError[]>, cp.ChildProcessWithoutNullStreams] {
+	cmd = cmd || `/home/abhi/Projects/go/bin/stackrunner_server`;
+	rootPath = rootPath || '/home/abhi/Projects/stack/HSRest';
+	const sp = cp.spawn(cmd, [rootPath]);
+	const prom = new Promise<IBuildError[]>((res, rej) => {
 		sp.stdout.on('data', d => {
 			const bes = <IBuildError[]>(JSON.parse(d));
 			res(bes);
@@ -29,24 +29,15 @@ function runStackRunner(cmd: string, rootPath: string): Promise<IBuildError[]> {
 			rej(err);
 		});
 
-		// sp.on('disconnect', () => {
-		// 	console.log('disconnected!!');
-		// });
-
-		// sp.on('exit', c => {
-		// 	console.log(c);
-		// });
-
-		// sp.on('close', (c, s) => {
-		// 	console.log(c, s);
-		// });
-
 	});
+
+	return [prom, sp];
 }
 
 let dgnstsColl = vscode.languages.createDiagnosticCollection('stackrunner');
 let textDocument: vscode.TextDocument;
 let runOnSave = false;
+let lastSp: cp.ChildProcessWithoutNullStreams;
 
 const setupConfigurations = () => {
 	const _runOnSave = vscode.workspace.getConfiguration('stackrunner').get('runonsave') as boolean;
@@ -62,56 +53,83 @@ const conditionalStackRunner = (condition: boolean) => (td: vscode.TextDocument 
 	}
 };
 
+const prepareRange = (be: IBuildError) => {
+	const sl = Math.max(0, be.line - 1);
+	const pos1 = new vscode.Position(sl, be.column);
+	let rng: vscode.Range;
+	if (be.file && be.file.indexOf('.hs') === -1) {
+		rng = new vscode.Range(pos1, new vscode.Position(Number.MAX_SAFE_INTEGER, 0));
+	} else {
+		rng = new vscode.Range(pos1, pos1);
+	}
+	return rng;
+};
+
+const prepareDiagnosticsMap = (bes: IBuildError[]) => {
+	const dgnstsMap = new Map<string, vscode.Diagnostic[]>();
+	bes.forEach(be => {
+		be.details = be.details.map(d => {
+			return d.replace(/^.*\[warn\]\s*/, '');
+		});
+		if (!!be.extras && be.extras.trim().length > 0) {
+			be.details.unshift(be.extras);
+		}
+		const rng = prepareRange(be);
+		const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
+		if (!dgnstsMap.has(be.file)) {
+			dgnstsMap.set(be.file, []);
+		}
+
+		const dgnsts = dgnstsMap.get(be.file);
+		if (!!dgnsts) {
+			dgnsts.push(dgnst);
+		}
+	});
+	return dgnstsMap;
+};
+
+const handlePromise = (prom: Promise<IBuildError[]>, context: vscode.ExtensionContext) => {
+	return new Promise<void>((res, rej) => {
+		if (prom) {
+			prom.then(bes => {
+				if (bes.length === 0) {
+					vscode.window.showInformationMessage('Stack Runner was able to build your project successfully!');
+				} else {
+					const dgnstsMap = prepareDiagnosticsMap(bes);
+					dgnstsMap.forEach((v, k) => {
+						dgnstsColl.set(vscode.Uri.file(k), v);
+					});
+					vscode.window.showErrorMessage(`Found ${bes.length} build errors!`);
+					context.subscriptions.push(dgnstsColl);
+				}
+				res();
+			})
+				.catch(err => {
+					vscode.window.showErrorMessage(err.toString());
+					res();
+				});
+		}
+
+	});
+}
+
 export function runStackRunnerWith(textDocument: vscode.TextDocument, context: vscode.ExtensionContext) {
 	// Display a message box to the user
 	vscode.window.showInformationMessage('Running stack runner now');
 	const rootPath = vscode.workspace.getWorkspaceFolder(textDocument.uri);
 	const bin = vscode.workspace.getConfiguration('stackrunner').get('serverBinary');
-	runStackRunner(`${bin}`, rootPath ? rootPath.uri.fsPath : '')
-		.then(bes => {
-			if (bes.length === 0) {
-				vscode.window.showInformationMessage('Stack Runner was able to build your project successfully!');
-				dgnstsColl.clear();
-			} else {
-				if (dgnstsColl) {
-					dgnstsColl.clear();
-				}
-				let dgnstsMap= new Map<string, vscode.Diagnostic[]>();
-				bes.forEach(be => {
-					be.details = be.details.map(d => {
-						return d.replace(/^.*\[warn\]\s*/, '');
-					});
-					if (!!be.extras && be.extras.trim().length > 0) {
-						be.details.unshift(be.extras);
-					}
-					const sl = Math.max(0, be.line - 1);
-					const pos1 = new vscode.Position(sl, be.column);
-					let rng: vscode.Range;
-					if (be.file && be.file.indexOf('.hs') === -1) {
-						rng = new vscode.Range(pos1, new vscode.Position(Number.MAX_SAFE_INTEGER, 0));
-					} else {
-						rng = new vscode.Range(pos1, pos1);
-					}
-					const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
-					if (!dgnstsMap.has(be.file)) {
-						dgnstsMap.set(be.file, []);
-					}
-
-					const dgnsts = dgnstsMap.get(be.file);
-					if (!!dgnsts) {
-						dgnsts.push(dgnst);
-					}
-				});
-				dgnstsMap.forEach((v, k) => {
-					dgnstsColl.set(vscode.Uri.file(k), v);
-				});
-				vscode.window.showErrorMessage(`Found ${bes.length} build errors!`);
-				context.subscriptions.push(dgnstsColl);
-			}
-		})
-		.catch(err => {
-			vscode.window.showErrorMessage(err.toString());
-		});
+	const [prom, sp] = runStackRunner(`${bin}`, rootPath ? rootPath.uri.fsPath : '');
+	if (lastSp) {
+		lastSp.kill();
+		dgnstsColl.clear();
+	}
+	lastSp = sp;
+	const po = <vscode.ProgressOptions>{
+		location: vscode.ProgressLocation.Window,
+		title: "Stack Runner Execution",
+	};
+	const thenable = handlePromise(prom, context) as Thenable<void>;
+	vscode.window.withProgress(po, ((progress: vscode.Progress<undefined>, token: vscode.CancellationToken) => thenable) as any);
 }
 
 // this method is called when your extension is activated
