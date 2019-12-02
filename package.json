@@ -26,7 +26,7 @@
 			"type": "object",
 			"properties": {
 				"stackrunner.serverBinary": {
-					"default": "/home/abhi/Projects/go/bin/stackrunner_server",
+					"default": "stackrunner_server",
 					"type": "string",
 					"description": "The absolute path of the Stack Runner Server binary"
 				},

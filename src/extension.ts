@@ -101,7 +101,12 @@ const handlePromise = (prom: Promise<IBuildError[]>, context: vscode.ExtensionCo
 				res();
 			})
 				.catch(err => {
-					vscode.window.showErrorMessage(err.toString());
+					if ((err as any).code === 'ENOENT') {
+						vscode.window.showErrorMessage(
+							`Could not find the binary for stackrunner_server!` +
+							` Please add or update "stackrunner.serverBinary" in your settings.`,
+							{ modal: true });
+					}
 					res();
 				});
 		}
