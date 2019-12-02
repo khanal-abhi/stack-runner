@@ -47,14 +47,10 @@ function runStackRunner(cmd: string, rootPath: string): Promise<IBuildError[]> {
 let dgnstsColl = vscode.languages.createDiagnosticCollection('stackrunner');
 let textDocument: vscode.TextDocument;
 let runOnSave = false;
-let runOnLoad = false;
 
 const setupConfigurations = () => {
 	const _runOnSave = vscode.workspace.getConfiguration('stackrunner').get('runonsave') as boolean;
 	runOnSave = _runOnSave;
-
-	const _runOnLoad = vscode.workspace.getConfiguration('stackrunner').get('runonload') as boolean;
-	runOnLoad = _runOnLoad;
 };
 
 const conditionalStackRunner = (condition: boolean) => (td: vscode.TextDocument | undefined, ctx: vscode.ExtensionContext) => {
@@ -80,7 +76,7 @@ export function runStackRunnerWith(textDocument: vscode.TextDocument, context: v
 				if (dgnstsColl) {
 					dgnstsColl.clear();
 				}
-				const dgnsts: vscode.Diagnostic[] = [];
+				let dgnstsMap= new Map<string, vscode.Diagnostic[]>();
 				bes.forEach(be => {
 					be.details = be.details.map(d => {
 						return d.replace(/^.*\[warn\]\s*/, '');
@@ -97,11 +93,18 @@ export function runStackRunnerWith(textDocument: vscode.TextDocument, context: v
 						rng = new vscode.Range(pos1, pos1);
 					}
 					const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
-					if (textDocument.uri.fsPath.localeCompare(be.file) === 0) {
+					if (!dgnstsMap.has(be.file)) {
+						dgnstsMap.set(be.file, []);
+					}
+
+					const dgnsts = dgnstsMap.get(be.file);
+					if (!!dgnsts) {
 						dgnsts.push(dgnst);
 					}
 				});
-				dgnstsColl.set(textDocument.uri, dgnsts);
+				dgnstsMap.forEach((v, k) => {
+					dgnstsColl.set(vscode.Uri.file(k), v);
+				});
 				vscode.window.showErrorMessage(`Found ${bes.length} build errors!`);
 				context.subscriptions.push(dgnstsColl);
 			}
@@ -128,11 +131,12 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	if (!!vscode.window.activeTextEditor) {
-		conditionalStackRunner(runOnLoad)(vscode.window.activeTextEditor.document, context);
+		conditionalStackRunner(false)(vscode.window.activeTextEditor.document, context);
 	}
 
 	vscode.workspace.onDidSaveTextDocument(td => {
-		conditionalStackRunner(runOnSave)(td, context);
+		const run = td.uri.fsPath.indexOf('.json') === -1 && runOnSave;
+		conditionalStackRunner(run)(td, context);
 	});
 
 	vscode.workspace.onDidChangeTextDocument(td => {
@@ -141,7 +145,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	vscode.window.onDidChangeActiveTextEditor(te => {
 		if (!!te) {
-			conditionalStackRunner(runOnLoad)(te.document, context);
+			conditionalStackRunner(false)(te.document, context);
 		}
 	});
 

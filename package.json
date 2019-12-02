@@ -34,11 +34,6 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Whether or not to run stackrunner on save"
-				},
-				"stackrunner.runonload": {
-					"type": "boolean",
-					"default": false,
-					"description": "Whether or not to run stackrunner on load"
 				}
 			}
 		}
