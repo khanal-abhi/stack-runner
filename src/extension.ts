@@ -21,10 +21,6 @@ function runStackRunner(cmd: string, rootPath: string): [Promise<IBuildError[]>,
 			res(bes);
 		});
 
-		// sp.on('message', m => {
-		// 	console.log(m);
-		// });
-
 		sp.on('error', err => {
 			rej(err);
 		});
@@ -99,7 +95,7 @@ const handlePromise = (prom: Promise<IBuildError[]>, context: vscode.ExtensionCo
 					dgnstsMap.forEach((v, k) => {
 						dgnstsColl.set(vscode.Uri.file(k), v);
 					});
-					vscode.window.showErrorMessage(`Found ${bes.length} build errors!`);
+					vscode.window.showErrorMessage(`Found ${bes.length} build error${bes.length === 1 ? '' : 's'}!`, { modal: true });
 					context.subscriptions.push(dgnstsColl);
 				}
 				res();
@@ -111,7 +107,7 @@ const handlePromise = (prom: Promise<IBuildError[]>, context: vscode.ExtensionCo
 		}
 
 	});
-}
+};
 
 export function runStackRunnerWith(textDocument: vscode.TextDocument, context: vscode.ExtensionContext) {
 	// Display a message box to the user
