@@ -88,9 +88,14 @@ export function runStackRunnerWith(textDocument: vscode.TextDocument, context: v
 					if (!!be.extras && be.extras.trim().length > 0) {
 						be.details.unshift(be.extras);
 					}
-					const pos1 = new vscode.Position(be.line - 1, be.column);
-					// const pos2 = new vscode.Position(be.line, 0);
-					const rng = new vscode.Range(pos1, pos1);
+					const sl = Math.max(0, be.line - 1);
+					const pos1 = new vscode.Position(sl, be.column);
+					let rng: vscode.Range;
+					if (be.file && be.file.indexOf('.hs') === -1) {
+						rng = new vscode.Range(pos1, new vscode.Position(Number.MAX_SAFE_INTEGER, 0));
+					} else {
+						rng = new vscode.Range(pos1, pos1);
+					}
 					const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
 					if (textDocument.uri.fsPath.localeCompare(be.file) === 0) {
 						dgnsts.push(dgnst);
