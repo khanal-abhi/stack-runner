@@ -49,6 +49,23 @@ let textDocument: vscode.TextDocument;
 let runOnSave = false;
 let runOnLoad = false;
 
+const setupConfigurations = () => {
+	const _runOnSave = vscode.workspace.getConfiguration('stackrunner').get('runonsave') as boolean;
+	runOnSave = _runOnSave;
+
+	const _runOnLoad = vscode.workspace.getConfiguration('stackrunner').get('runonload') as boolean;
+	runOnLoad = _runOnLoad;
+};
+
+const conditionalStackRunner = (condition: boolean) => (td: vscode.TextDocument | undefined, ctx: vscode.ExtensionContext) => {
+	if (!!td) {
+		textDocument = td;
+		if (condition) {
+			runStackRunnerWith(td, ctx);
+		}
+	}
+};
+
 export function runStackRunnerWith(textDocument: vscode.TextDocument, context: vscode.ExtensionContext) {
 	// Display a message box to the user
 	vscode.window.showInformationMessage('Running stack runner now');
@@ -95,45 +112,39 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "stack-runner" is now active!');
+	const msg = 'Thank you for installing Stack Runner';
+	console.log(msg);
+	vscode.window.showInformationMessage(msg);
 
-	const _runOnSave = vscode.workspace.getConfiguration('stackrunner').get('runonsave') as boolean;
-	runOnSave = _runOnSave;
+	setupConfigurations();
 
-	const _runOnLoad = vscode.workspace.getConfiguration('stackrunner').get('runonload') as boolean;
-	runOnLoad = _runOnLoad;
+	vscode.workspace.onDidChangeConfiguration(_ => {
+		setupConfigurations();
+	});
 
 	if (!!vscode.window.activeTextEditor) {
-		textDocument = vscode.window.activeTextEditor.document;
-		if (runOnLoad) {
-			runStackRunnerWith(textDocument, context);
-		}
+		conditionalStackRunner(runOnLoad)(vscode.window.activeTextEditor.document, context);
 	}
 
 	vscode.workspace.onDidSaveTextDocument(td => {
-		if (runOnSave) {
-			runStackRunnerWith(td, context);
-		}
+		conditionalStackRunner(runOnSave)(td, context);
 	});
 
 	vscode.workspace.onDidChangeTextDocument(td => {
 		textDocument = td.document;
 	});
 
-	vscode.window.onDidChangeActiveTextEditor(td => {
-		if (!!td) {
-			textDocument = td.document;
-			if (runOnLoad) {
-				runStackRunnerWith(textDocument, context);
-			}
+	vscode.window.onDidChangeActiveTextEditor(te => {
+		if (!!te) {
+			conditionalStackRunner(runOnLoad)(te.document, context);
 		}
 	});
 
 	let sub = vscode.commands.registerCommand('extension.runStackRunner', args => {
-		if (!!textDocument) {
-			runStackRunnerWith(textDocument, context);
-		}
+		conditionalStackRunner(true)(textDocument, context);
 	});
+
+	context.subscriptions.push(sub);
 }
 
 // this method is called when your extension is deactivated
