@@ -63,25 +63,32 @@ const prepareRange = (be: IBuildError) => {
 
 const prepareDiagnosticsMap = (bes: IBuildError[]) => {
 	const dgnstsMap = new Map<string, vscode.Diagnostic[]>();
+	let handled = true;
 	bes.forEach(be => {
-		be.details = be.details.map(d => {
-			return d.replace(/^.*\[warn\]\s*/, '');
-		});
-		if (!!be.extras && be.extras.trim().length > 0) {
-			be.details.unshift(be.extras);
-		}
-		const rng = prepareRange(be);
-		const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
-		if (!dgnstsMap.has(be.file)) {
-			dgnstsMap.set(be.file, []);
-		}
+		if (be.file.length === 0 && be.line === -1 && be.column === -1 && be.extras) {
+			vscode.window.showErrorMessage(be.extras, {modal : true});
+		} else {
+			be.details = be.details.map(d => {
+				return d.replace(/^.*\[warn\]\s*/, '');
+			});
+			if (!!be.extras && be.extras.trim().length > 0) {
+				be.details.unshift(be.extras);
+			}
+			const rng = prepareRange(be);
+			const dgnst = new vscode.Diagnostic(rng, be.details.join('\n'), vscode.DiagnosticSeverity.Error);
+			if (!dgnstsMap.has(be.file)) {
+				dgnstsMap.set(be.file, []);
+			}
 
-		const dgnsts = dgnstsMap.get(be.file);
-		if (!!dgnsts) {
-			dgnsts.push(dgnst);
+			const dgnsts = dgnstsMap.get(be.file);
+			if (!!dgnsts) {
+				dgnsts.push(dgnst);
+				handled = false;
+			}
 		}
 	});
-	return dgnstsMap;
+	const res: [boolean, Map<string, vscode.Diagnostic[]>] = [handled, dgnstsMap];
+	return res;
 };
 
 const handlePromise = (prom: Promise<IBuildError[]>, context: vscode.ExtensionContext) => {
@@ -91,12 +98,14 @@ const handlePromise = (prom: Promise<IBuildError[]>, context: vscode.ExtensionCo
 				if (bes.length === 0) {
 					vscode.window.showInformationMessage('Stack Runner was able to build your project successfully!');
 				} else {
-					const dgnstsMap = prepareDiagnosticsMap(bes);
-					dgnstsMap.forEach((v, k) => {
-						dgnstsColl.set(vscode.Uri.file(k), v);
-					});
-					vscode.window.showErrorMessage(`Found ${bes.length} build error${bes.length === 1 ? '' : 's'}!`, { modal: true });
-					context.subscriptions.push(dgnstsColl);
+					const [handled, dgnstsMap] = prepareDiagnosticsMap(bes);
+					if (!handled) {
+						dgnstsMap.forEach((v, k) => {
+							dgnstsColl.set(vscode.Uri.file(k), v);
+						});
+						vscode.window.showErrorMessage(`Found ${bes.length} build error${bes.length === 1 ? '' : 's'}!`, { modal: true });
+						context.subscriptions.push(dgnstsColl);
+					}
 				}
 				res();
 			})
